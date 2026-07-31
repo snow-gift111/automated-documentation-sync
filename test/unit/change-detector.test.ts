@@ -96,12 +96,12 @@ test('ChangeDetector detects added, modified, and deleted files from repository 
   const result = detector.detectChanges(previous);
 
   assert.equal(result.hasChanges, true);
-  assert.equal(result.addedFiles.length, 3);
+  assert.equal(result.addedFiles.length, 4);
   assert.equal(result.modifiedFiles.length, 0);
   assert.equal(result.deletedFiles.length, 1);
-  assert.equal(result.changes.length, 4);
+  assert.equal(result.changes.length, 5);
 
-  assert.deepEqual(result.changes.map((change) => change.type), ['added', 'added', 'added', 'deleted']);
+  assert.deepEqual(result.changes.map((change) => change.type), ['added', 'added', 'added', 'added', 'deleted']);
 });
 
 test('ChangeDetector reports no changes when repository state is unchanged', () => {

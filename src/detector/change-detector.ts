@@ -63,7 +63,8 @@ export class ChangeDetector {
     return (
       previousFile.kind !== currentFile.kind ||
       previousFile.documentationKind !== currentFile.documentationKind ||
-      previousFile.extension !== currentFile.extension
+      previousFile.extension !== currentFile.extension ||
+      previousFile.contentHash !== currentFile.contentHash
     );
   }
 }

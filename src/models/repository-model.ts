@@ -14,6 +14,7 @@ export interface ScannedFile {
   kind: RepositoryFileKind;
   documentationKind?: DocumentationKind;
   extension: string;
+  contentHash?: string;
 }
 
 export interface RepositoryModel {

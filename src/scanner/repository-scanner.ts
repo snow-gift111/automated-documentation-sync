@@ -1,8 +1,8 @@
+import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type {
   DocumentationKind,
-  RepositoryFileKind,
   RepositoryModel,
   ScannedFile,
 } from '../models/repository-model';
@@ -106,16 +106,17 @@ export class RepositoryScanner {
       }
 
       const relativePath = path.relative(this.rootPath, entryPath).split(path.sep).join('/');
-      const scannedFile = this.classifyFile(entryPath, relativePath);
+      const scannedFile = await this.classifyFile(entryPath, relativePath);
       results.push(scannedFile);
     }
 
     return results;
   }
 
-  private classifyFile(filePath: string, relativePath: string): ScannedFile {
+  private async classifyFile(filePath: string, relativePath: string): Promise<ScannedFile> {
     const extension = path.extname(filePath).toLowerCase();
     const fileName = path.basename(filePath).toLowerCase();
+    const contentHash = await this.computeFileHash(filePath);
 
     if (METADATA_FILENAMES.has(fileName)) {
       return {
@@ -123,6 +124,7 @@ export class RepositoryScanner {
         relativePath,
         kind: 'metadata',
         extension,
+        contentHash,
       };
     }
 
@@ -134,6 +136,7 @@ export class RepositoryScanner {
         kind: 'documentation',
         documentationKind,
         extension,
+        contentHash,
       };
     }
 
@@ -143,6 +146,7 @@ export class RepositoryScanner {
         relativePath,
         kind: 'source',
         extension,
+        contentHash,
       };
     }
 
@@ -151,7 +155,13 @@ export class RepositoryScanner {
       relativePath,
       kind: 'metadata',
       extension,
+      contentHash,
     };
+  }
+
+  private async computeFileHash(filePath: string): Promise<string> {
+    const fileContents = await fs.readFile(filePath);
+    return createHash('sha256').update(fileContents).digest('hex');
   }
 
   private getDocumentationKind(relativePath: string, fileName: string): DocumentationKind | undefined {
@@ -165,13 +175,13 @@ export class RepositoryScanner {
       return 'changelog';
     }
 
+    if (normalizedPath.startsWith('architecture/') || normalizedPath.includes('/architecture/')) {
+      return 'architecture';
+    }
+
     if (normalizedPath.startsWith('docs/')) {
       if (normalizedPath.includes('/api/')) {
         return 'api';
-      }
-
-      if (normalizedPath.includes('/architecture/') || normalizedPath.includes('/architectural/')) {
-        return 'architecture';
       }
 
       return 'docs';
@@ -185,7 +195,7 @@ export class RepositoryScanner {
       return 'api';
     }
 
-    if (normalizedPath.includes('/architecture/') || normalizedPath.includes('/design/')) {
+    if (normalizedPath.includes('/design/')) {
       return 'architecture';
     }
 

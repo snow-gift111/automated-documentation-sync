@@ -4,13 +4,14 @@ import { PipelineOrchestrator } from '../../src/core/pipeline-orchestrator';
 import { RepositoryScanner } from '../../src/scanner/repository-scanner';
 import { AuditStore } from '../../src/audit/audit-store';
 import { GitService } from '../../src/git/git-service';
+import type { RepositoryModel } from '../../src/models/repository-model';
 
 class StubScanner extends RepositoryScanner {
   constructor() {
     super('/repo');
   }
 
-  async scanRepository() {
+  override async scanRepository(): Promise<RepositoryModel> {
     return {
       rootPath: '/repo',
       sourceFiles: [],
@@ -52,14 +53,14 @@ test('PipelineOrchestrator executes the approved in-memory pipeline and records 
 
 test('PipelineOrchestrator stops immediately on a blocking error and returns the failed stage', async () => {
   class FailingScanner extends RepositoryScanner {
-    constructor() {
-      super('/repo');
-    }
-
-    async scanRepository() {
-      throw new Error('Repository is unavailable');
-    }
+  constructor() {
+    super('/repo');
   }
+
+  override async scanRepository(): Promise<RepositoryModel> {
+    throw new Error('Repository is unavailable');
+  }
+}
 
   const orchestrator = new PipelineOrchestrator(
     '/repo',

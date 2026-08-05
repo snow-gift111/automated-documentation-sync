@@ -5,8 +5,8 @@ export class ChangeDetector {
   constructor(private readonly repositoryModel: RepositoryModel) {}
 
   detectChanges(previousState?: RepositoryModel): ChangeDetectionResult {
-    const currentFiles = this.collectAllFiles(this.repositoryModel);
-    const previousFiles = previousState ? this.collectAllFiles(previousState) : [];
+    const currentFiles = this.collectAllFiles(this.repositoryModel).sort(this.sortByRelativePath);
+    const previousFiles = previousState ? this.collectAllFiles(previousState).sort(this.sortByRelativePath) : [];
 
     const previousMap = new Map(previousFiles.map((file) => [file.relativePath, file]));
     const currentMap = new Map(currentFiles.map((file) => [file.relativePath, file]));
@@ -43,10 +43,10 @@ export class ChangeDetector {
 
     return {
       repository: this.repositoryModel,
-      changes,
-      addedFiles,
-      modifiedFiles,
-      deletedFiles,
+      changes: changes.sort((left, right) => left.file.relativePath.localeCompare(right.file.relativePath)),
+      addedFiles: addedFiles.sort(this.sortByRelativePath),
+      modifiedFiles: modifiedFiles.sort(this.sortByRelativePath),
+      deletedFiles: deletedFiles.sort(this.sortByRelativePath),
       hasChanges: changes.length > 0,
     };
   }
@@ -66,5 +66,9 @@ export class ChangeDetector {
       previousFile.extension !== currentFile.extension ||
       previousFile.contentHash !== currentFile.contentHash
     );
+  }
+
+  private sortByRelativePath(left: ScannedFile, right: ScannedFile): number {
+    return left.relativePath.localeCompare(right.relativePath);
   }
 }

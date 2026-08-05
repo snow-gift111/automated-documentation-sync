@@ -104,6 +104,63 @@ test('ChangeDetector detects added, modified, and deleted files from repository 
   assert.deepEqual(result.changes.map((change) => change.type), ['added', 'added', 'added', 'added', 'deleted']);
 });
 
+test('ChangeDetector returns a deterministic change inventory ordering for repository snapshots', () => {
+  const previous = createRepositoryModel({
+    sourceFiles: [
+      {
+        path: '/repo/src/zeta.ts',
+        relativePath: 'src/zeta.ts',
+        kind: 'source',
+        extension: '.ts',
+        contentHash: 'hash-1',
+      },
+    ],
+    documentationFiles: [],
+    metadataFiles: [],
+    summary: {
+      sourceCount: 1,
+      documentationCount: 0,
+      metadataCount: 0,
+      totalFiles: 1,
+    },
+  });
+
+  const current = createRepositoryModel({
+    sourceFiles: [
+      {
+        path: '/repo/src/alpha.ts',
+        relativePath: 'src/alpha.ts',
+        kind: 'source',
+        extension: '.ts',
+        contentHash: 'hash-2',
+      },
+      {
+        path: '/repo/src/zeta.ts',
+        relativePath: 'src/zeta.ts',
+        kind: 'source',
+        extension: '.ts',
+        contentHash: 'hash-3',
+      },
+    ],
+    documentationFiles: [],
+    metadataFiles: [],
+    summary: {
+      sourceCount: 2,
+      documentationCount: 0,
+      metadataCount: 0,
+      totalFiles: 2,
+    },
+  });
+
+  const detector = new ChangeDetector(current);
+  const result = detector.detectChanges(previous);
+
+  assert.deepEqual(result.changes.map((change) => change.file.relativePath), ['src/alpha.ts', 'src/zeta.ts']);
+  assert.deepEqual(result.addedFiles.map((file) => file.relativePath), ['src/alpha.ts']);
+  assert.deepEqual(result.modifiedFiles.map((file) => file.relativePath), ['src/zeta.ts']);
+  assert.equal(result.deletedFiles.length, 0);
+});
+
 test('ChangeDetector reports no changes when repository state is unchanged', () => {
   const repository = createRepositoryModel({
     sourceFiles: [

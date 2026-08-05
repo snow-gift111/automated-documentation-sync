@@ -15,16 +15,16 @@ export class DocumentationAnalyzer {
     const items: DocumentationAnalysisItem[] = [];
     const generatedSections: DocumentationAnalysisResult['generatedSections'] = [];
 
-    const supportedTargets = new Set([
+    const supportedTargets = [
       'README.md',
       'CHANGELOG.md',
       'docs/',
       'docs/api/',
       'architecture/',
-    ]);
+    ];
 
     for (const target of supportedTargets) {
-      const matchingFile = documentationFiles.find((file) => file.relativePath === target || file.relativePath.startsWith(target));
+      const matchingFile = this.findDocumentationTarget(documentationFiles, target);
 
       if (!matchingFile) {
         items.push({
@@ -91,5 +91,34 @@ export class DocumentationAnalyzer {
       items,
       generatedSections,
     };
+  }
+
+  private findDocumentationTarget(documentationFiles: ScannedFile[], target: string): ScannedFile | undefined {
+    const normalizedTarget = target.toLowerCase();
+    const candidates = documentationFiles
+      .filter((file) => {
+        const relativePath = file.relativePath.toLowerCase();
+
+        if (target === 'README.md' || target === 'CHANGELOG.md') {
+          return relativePath === normalizedTarget;
+        }
+
+        if (target === 'docs/') {
+          return relativePath.startsWith('docs/') && !relativePath.startsWith('docs/api/');
+        }
+
+        if (target === 'docs/api/') {
+          return relativePath.startsWith('docs/api/');
+        }
+
+        if (target === 'architecture/') {
+          return relativePath.startsWith('architecture/');
+        }
+
+        return relativePath === normalizedTarget || relativePath.startsWith(normalizedTarget);
+      })
+      .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+
+    return candidates[0];
   }
 }

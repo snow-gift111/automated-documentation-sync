@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mock } from 'node:test';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, promises as fsPromises } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { RepositoryScanner } from '../../src/scanner/repository-scanner';
@@ -39,6 +40,44 @@ test('RepositoryScanner identifies source, documentation, and metadata files', a
     assert.ok(model.sourceFiles.some((file) => file.relativePath === 'src/services/sync.ts' && file.kind === 'source'));
     assert.ok(model.metadataFiles.some((file) => file.relativePath === 'package.json'));
     assert.ok(model.metadataFiles.some((file) => file.relativePath === 'tsconfig.json'));
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('RepositoryScanner throws a clear error for a missing repository path', async () => {
+  const scanner = new RepositoryScanner(path.join(os.tmpdir(), 'ads-missing-repo'));
+
+  await assert.rejects(() => scanner.scanRepository(), /Repository path is unavailable\./);
+});
+
+test('RepositoryScanner tolerates unreadable files when computing content hashes', async () => {
+  const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'ads-scanner-unreadable-'));
+  const brokenFile = path.join(tempRoot, 'docs', 'blocked.md');
+
+  try {
+    mkdirSync(path.dirname(brokenFile), { recursive: true });
+    writeFileSync(brokenFile, '# blocked\n');
+
+    const originalReadFile = fsPromises.readFile;
+    const readMock = mock.method(fsPromises, 'readFile', async (targetPath: string | Buffer | URL, options?: unknown) => {
+      if (String(targetPath) === brokenFile) {
+        throw Object.assign(new Error('permission denied'), { code: 'EACCES' });
+      }
+
+      return originalReadFile(targetPath as never, options as never);
+    });
+
+    try {
+      const scanner = new RepositoryScanner(tempRoot);
+      const model = await scanner.scanRepository();
+
+      assert.equal(model.summary.totalFiles, 1);
+      assert.equal(model.summary.documentationCount, 1);
+      assert.ok(model.documentationFiles.some((file) => file.relativePath === 'docs/blocked.md' && file.documentationKind === 'docs'));
+    } finally {
+      readMock.mock.restore();
+    }
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }

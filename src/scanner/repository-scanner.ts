@@ -54,6 +54,7 @@ export class RepositoryScanner {
 
   async scanRepository(): Promise<RepositoryModel> {
     const absoluteRoot = path.resolve(this.rootPath);
+    await this.ensureRepositoryPathIsAvailable(absoluteRoot);
     const scannedFiles = await this.walkDirectory(absoluteRoot);
 
     const sourceFiles: ScannedFile[] = [];
@@ -82,6 +83,24 @@ export class RepositoryScanner {
         totalFiles: scannedFiles.length,
       },
     };
+  }
+
+  private async ensureRepositoryPathIsAvailable(rootPath: string): Promise<void> {
+    try {
+      const stats = await fs.stat(rootPath);
+      if (!stats.isDirectory()) {
+        throw new Error('Repository path is unavailable.');
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === 'ENOENT' || code === 'ENOTDIR') {
+          throw new Error('Repository path is unavailable.');
+        }
+      }
+
+      throw error;
+    }
   }
 
   private async walkDirectory(currentDirectory: string): Promise<ScannedFile[]> {
@@ -159,9 +178,18 @@ export class RepositoryScanner {
     };
   }
 
-  private async computeFileHash(filePath: string): Promise<string> {
-    const fileContents = await fs.readFile(filePath);
-    return createHash('sha256').update(fileContents).digest('hex');
+  private async computeFileHash(filePath: string): Promise<string | undefined> {
+    try {
+      const fileContents = await fs.readFile(filePath);
+      return createHash('sha256').update(fileContents).digest('hex');
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EACCES' || code === 'EPERM') {
+        return undefined;
+      }
+
+      throw error;
+    }
   }
 
   private getDocumentationKind(relativePath: string, fileName: string): DocumentationKind | undefined {

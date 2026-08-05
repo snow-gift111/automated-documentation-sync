@@ -2,262 +2,385 @@
 
 ## 1. Implementation Overview
 
-The implementation will deliver a conservative, review-first documentation synchronization system for a single GitHub-hosted repository. The application will run in two primary modes:
+The approved implementation will deliver a single-repository, review-first, Markdown-based documentation synchronization system aligned to the approved architecture and design review. The MVP will remain conservative by design: it should analyze repository state, detect source-level changes, recommend documentation updates, and produce a deterministic synchronization report before any documentation update can be considered final.
 
-- Manual execution via a CLI entrypoint for developer and technical writer use
-- Automated execution through GitHub Actions when repository changes are detected
+The implementation must preserve the approved architectural constraints:
+- Node.js with TypeScript as the runtime and engineering base
+- Git as the repository source of truth
+- GitHub as the repository and permission boundary
+- Markdown as the documentation and report output format
+- no external services in the MVP
+- no automatic overwrite of existing documentation
+- mandatory human approval before documentation changes are accepted
 
-The implementation must preserve the approved architecture principles:
-- Node.js with TypeScript
-- Markdown-based outputs
-- Git-native repository operations
-- single repository scope
-- human approval before commit
-- safe, confidence-based documentation generation
+This plan decomposes the approved architecture into a dependency-ordered implementation sequence that avoids introducing new requirements or new technical scope.
 
-The target MVP will prioritize the generation of review-ready sync proposals and a strict audit trail over aggressive automation. The first release will support the required documentation targets: README.md, docs/, API documentation, architecture documentation, and CHANGELOG.md.
+## 2. Dependency-Ordered Task List
 
-## 2. Development Phases
+### Milestone 1 — Foundation and repository access contract
+Objective:
+- Establish the stable execution shell and repository-facing contracts needed by all downstream modules.
 
-### Phase 1 — Foundation and Repository Integration
-Objective: establish the application shell, repository access model, and execution entrypoints.
+Tasks:
+1. Define the execution context and normalized repository input model.
+2. Establish the CLI entry contract for invoking a synchronization run.
+3. Implement repository root detection and repository availability validation.
+4. Wire the Git service boundary for repository inspection and change metadata access.
+5. Create the shared model contracts for repository state, change detection, analysis output, validation result, review state, and audit metadata.
 
-Key activities:
-- Initialize the Node.js and TypeScript project structure
-- Define shared configuration and environment contracts
-- Build repository scanning and Git interaction services
-- Establish a deterministic execution context for both CLI and CI/CD runs
+Dependencies:
+- No upstream module dependency beyond shared model agreement.
 
-Exit criteria:
-- Repository can be scanned successfully
-- Git file and history metadata can be accessed safely
-- A CLI entrypoint can start a sync run
+Blocked by:
+- None.
 
-### Phase 2 — Change Detection and Documentation Analysis
-Objective: detect repository drift and evaluate documentation readiness.
+### Milestone 2 — Repository scanning and file classification
+Objective:
+- Build the repository inventory required for the pipeline to reason about code and documentation impact.
 
-Key activities:
-- Implement repository file classification and source-document mapping
-- Detect source changes since the previous sync state
-- Analyze current documentation for staleness, gaps, and missing sections
-- Generate a structured analysis result for downstream generation
+Tasks:
+1. Implement repository scanning to enumerate supported source and documentation files.
+2. Classify repository files into source, documentation, metadata, and unsupported categories.
+3. Create the normalized repository model that downstream components will consume.
+4. Add deterministic handling for missing repository paths and unreadable files.
 
-Exit criteria:
-- Change detection produces a reliable list of modified source and documentation targets
-- Analysis output correctly classifies content as up-to-date, outdated, missing, or uncertain
+Dependencies:
+- Milestone 1 must be completed so the CLI and repository model contracts exist.
 
-### Phase 3 — Documentation Generation and Validation
-Objective: create safe, review-ready documentation proposals.
+Blocked by:
+- Milestone 1.
 
-Key activities:
-- Generate proposal content for supported documentation targets
-- Apply validation rules for confidence scoring and content safety
-- Skip low-confidence sections and emit warnings instead of guessing
-- Produce a structured synchronization report with diffs and summary details
+### Milestone 3 — Change detection and repository drift identification
+Objective:
+- Convert the repository inventory into a reliable source-change signal.
 
-Exit criteria:
-- Proposed documentation content is generated for supported targets
-- Low-confidence sections are skipped explicitly
-- A human-readable report is produced for review
+Tasks:
+1. Implement the change detector to compare current repository state with the expected baseline or repository history.
+2. Identify added, modified, and deleted source artifacts.
+3. Produce a structured change inventory for downstream analysis.
+4. Define deterministic skip behavior for unchanged documentation.
 
-### Phase 4 — Review and Approval Workflow
-Objective: implement the mandatory human approval gate.
+Dependencies:
+- Milestone 2 must provide the repository inventory and normalized file model.
 
-Key activities:
-- Package documentation diffs and reports into a review artifact
-- Enforce approval state before commit execution
-- Support GitHub-native review/approval semantics for the MVP
-- Record approval state and synchronizer outcome in the audit trail
+Blocked by:
+- Milestone 2.
 
-Exit criteria:
-- No commit is allowed without approved review state
-- Review artifacts are easily inspectable by authorized users
+### Milestone 4 — Documentation analysis and impact assessment
+Objective:
+- Determine which documentation is up-to-date, outdated, missing, or uncertain.
 
-### Phase 5 — Commit, Audit, and Release Readiness
-Objective: complete the end-to-end lifecycle and prepare the MVP for production use.
+Tasks:
+1. Implement the documentation analyzer over the repository model and detected changes.
+2. Produce a documentation impact assessment for each supported target.
+3. Create analysis records that clearly classify documentation state.
+4. Generate structured warnings for missing documentation and unsupported impact cases.
 
-Key activities:
-- Apply approved documentation changes through Git
-- Persist run metadata, timestamps, reports, and approvals
-- Validate end-to-end manual and CI/CD execution paths
-- Complete release readiness checks, documentation, and operational guardrails
+Dependencies:
+- Milestone 3 must supply the detected change set.
 
-Exit criteria:
-- End-to-end sync flow is operationally complete
-- Audit packets exist for each approved run
-- Release quality gates pass for the MVP scope
+Blocked by:
+- Milestone 3.
 
-## 3. Project Folder Structure
+### Milestone 5 — Validation gate for safe generation
+Objective:
+- Ensure only sufficiently confident documentation proposals can proceed to generation.
 
-The initial project structure should remain lightweight and implementation-friendly.
+Tasks:
+1. Implement the validator contract for confidence-based handling.
+2. Define validation rules for accepted, skipped, warned, and rejected documentation proposals.
+3. Ensure low-confidence sections are routed to warning-only behavior rather than speculative generation.
+4. Produce a validation result object consumed by the generator and review path.
 
-```text
-src/
-  cli/
-    cli.ts
-  commands/
-    sync-command.ts
-  core/
-    orchestrator.ts
-  scanner/
-    repository-scanner.ts
-  detector/
-    change-detector.ts
-  analyzer/
-    documentation-analyzer.ts
-  validator/
-    documentation-validator.ts
-  generator/
-    documentation-generator.ts
-  report/
-    report-generator.ts
-  review/
-    review-orchestrator.ts
-  git/
-    git-service.ts
-  audit/
-    audit-store.ts
-  config/
-    config-loader.ts
-  models/
-    repository-model.ts
-    sync-run-model.ts
-    validation-result.ts
-    approval-state.ts
-  utils/
-    file-utils.ts
-    markdown-utils.ts
-    logger.ts
+Dependencies:
+- Milestone 4 must provide the documentation impact analysis.
 
-test/
-  unit/
-  integration/
-  fixtures/
+Blocked by:
+- Milestone 4.
 
-docs/
-  architecture/
-  runbooks/
+### Milestone 6 — Documentation generation and report drafting
+Objective:
+- Generate review-ready documentation proposals and the synchronization report in stable Markdown form.
 
-.github/
-  workflows/
-    documentation-sync.yml
-```
+Tasks:
+1. Implement the documentation generator for approved Markdown-oriented targets.
+2. produce review-ready proposal content only for high-confidence and approved content paths.
+3. Implement the report generator to summarize changed files, warnings, skipped items, and execution details.
+4. Preserve deterministic report assembly so equivalent repository states produce stable outputs.
 
-This structure is intentionally simple and aligned with the approved architecture.
+Dependencies:
+- Milestone 5 must provide validation results before any generation proposal can be considered safe.
 
-## 4. Module Breakdown
+Blocked by:
+- Milestone 5.
 
-### CLI Module
-Responsible for receiving user input, invoking the orchestration pipeline, and returning an execution summary.
+### Milestone 7 — Review orchestration and approval-state enforcement
+Objective:
+- Add the mandatory human approval gate that prevents unsafe documentation mutation.
 
-### Command Layer
-Responsible for mapping user or workflow requests into a canonical synchronization command.
+Tasks:
+1. Implement the review orchestrator to package generation output and report artifacts.
+2. Represent approval as an explicit workflow state that can be queried and enforced.
+3. Enforce a blocked/approved model such that the workflow cannot proceed to commit without a recorded approval decision.
+4. Prepare review artifacts that are concise and reviewable by authorized users.
 
-### Core Orchestrator
-Responsible for coordinating the full synchronization lifecycle across all components.
+Dependencies:
+- Milestone 6 must produce generation output and the review package inputs.
 
-### Repository Scanner
-Responsible for enumerating repository structure, supported targets, file metadata, and documentation locations.
+Blocked by:
+- Milestone 6.
 
-### Change Detector
-Responsible for identifying source changes compared with the current baseline or Git history.
+### Milestone 8 — Audit persistence and traceability
+Objective:
+- Ensure every run and approval lifecycle leaves a traceable record.
 
-### Documentation Analyzer
-Responsible for analyzing documentation change needs and identifying drift.
+Tasks:
+1. Implement the audit store contract for run metadata, timestamps, warnings, and approval state.
+2. Record report metadata and stage-level execution information for each synchronization run.
+3. Preserve the audit trail for troubleshooting, governance, and reviewability.
 
-### Documentation Validator
-Responsible for assessing confidence, quality, and skip conditions prior to generation.
+Dependencies:
+- Milestone 6 provides the report payload and generated artifacts.
+- Milestone 7 provides the approval state and workflow record.
 
-### Documentation Generator
-Responsible for drafting Markdown outputs for approved documentation targets.
+Blocked by:
+- Milestone 6 and Milestone 7.
 
-### Report Generator
-Responsible for constructing human-readable summaries, warnings, skipped sections, and diff information.
+### Milestone 9 — Pipeline orchestration and end-to-end execution sequencing
+Objective:
+- Assemble the approved architecture into a deterministic, end-to-end orchestration path.
 
-### Review Orchestrator
-Responsible for packaging the proposed output and enforcing review readiness.
+Tasks:
+1. Implement the pipeline orchestrator that coordinates scan → detect → analyze → validate → generate → report → review.
+2. Define early-stop behavior for repository failures and low-confidence content blocks.
+3. Ensure all stage outputs are consumed through approved contracts.
+4. Guarantee that the orchestration path is consistent between CLI and CI/CD entry points.
 
-### Git Service
-Responsible for repository file access, diff retrieval, branch-safe operations, and commit preparation.
+Dependencies:
+- All upstream milestones must complete.
 
-### Audit Store
-Responsible for recording synchronization metadata, approval state, and artifacts for traceability.
+Blocked by:
+- Milestones 1 through 8.
 
-### Configuration Layer
-Responsible for loading repository-specific and system-level settings with safe defaults.
+### Milestone 10 — CLI integration and release readiness verification
+Objective:
+- Expose the approved workflow through the CLI and confirm the MVP is ready for the approved use conditions.
 
-### Utility Layer
-Responsible for common file handling, Markdown formatting, and logging support.
+Tasks:
+1. Wire the CLI to the orchestrator and the approved execution model.
+2. Validate manual execution success against the acceptance criteria.
+3. Verify deterministic markdown report generation and warning behavior.
+4. Confirm audit and review artifact completeness for the approved run path.
 
-## 5. Class and Responsibility Mapping
+Dependencies:
+- Milestone 9 must complete the orchestrated runtime path.
 
-The following logical class set will support the MVP without unnecessary complexity:
+Blocked by:
+- Milestone 9.
 
-### RepositoryScanner
-Responsibilities:
-- Enumerate supported source and documentation files
-- Build a normalized repository model
-- Return the set of candidate files for documentation analysis
+## 3. Milestones
 
-### ChangeDetector
-Responsibilities:
-- Compute file-level change sets from Git data or current state comparison
-- Track which source files changed since the last run
-- Determine whether documentation targets require refresh
+### Milestone 1 — Foundation and repository access contract
+- Target: establish execution shell and shared contracts.
+- Definition of readiness: repository root detection, Git boundary access, and model contracts are in place.
 
-### DocumentationAnalyzer
-Responsibilities:
-- Inspect existing docs against the repository model
-- Identify stale, missing, or inconsistent content
-- Produce actionable analysis records for generation
+### Milestone 2 — Repository scanning and file classification
+- Target: build a stable repository inventory model.
+- Definition of readiness: supported file types and structure are reliably enumerated.
 
-### DocumentationValidator
-Responsibilities:
-- Evaluate the confidence level of candidate documentation updates
-- Decide whether a section can be generated safely
-- Mark low-confidence sections for skip-and-warn behavior
+### Milestone 3 — Change detection and repository drift identification
+- Target: detect source changes from repository state and Git information.
+- Definition of readiness: change inventory is deterministic and stage-appropriate.
 
-### DocumentationGenerator
-Responsibilities:
-- Draft Markdown content for README.md, docs/, API docs, architecture docs, and CHANGELOG.md
-- Use repository metadata and existing docs conservatively
-- Produce content only when confidence thresholds are met
+### Milestone 4 — Documentation analysis and impact assessment
+- Target: classify docs as current, missing, outdated, or uncertain.
+- Definition of readiness: analysis records can safely feed the validator and generator.
 
-### ReportGenerator
-Responsibilities:
-- Produce a human-readable summary of changes, warnings, and skipped sections
-- Present the documentation diff in review-friendly form
-- Create standard report artifacts for audit and review
+### Milestone 5 — Validation gate for safe generation
+- Target: enforce confidence-based gating.
+- Definition of readiness: low-confidence sections are skipped and warned instead of generated.
 
-### ReviewOrchestrator
-Responsibilities:
-- Maintain the review workflow state
-- Ensure generation output is blocked until approved
-- Pass a clear sign-off state to the commit gateway
+### Milestone 6 — Documentation generation and report drafting
+- Target: produce review-ready proposals and deterministic reports.
+- Definition of readiness: generated content and reports can be passed into review and audit flows.
 
-### GitService
-Responsibilities:
-- Access Git history and diff data
-- Prepare commit-ready content
-- Support repository-safe application of approved updates
+### Milestone 7 — Review orchestration and approval-state enforcement
+- Target: define and gate the review-before-commit behavior.
+- Definition of readiness: no approved content is committed without recorded human approval.
 
-### AuditStore
-Responsibilities:
-- Record run metadata, timestamps, file lists, reports, and approvals
-- Provide a persistent record for governance, debugging, and traceability
+### Milestone 8 — Audit persistence and traceability
+- Target: preserve execution and approval metadata.
+- Definition of readiness: every run produces a reviewable audit record.
 
-### SyncOrchestrator
-Responsibilities:
-- Coordinate the full execution pipeline
-- Ensure deterministic sequencing across scanning, analysis, validation, generation, review, and commit
+### Milestone 9 — Pipeline orchestration and end-to-end execution sequencing
+- Target: unify the approved architecture into one execution path.
+- Definition of readiness: the pipeline completes the full sequence in stable order.
 
-## 6. Interfaces Between Components
+### Milestone 10 — CLI integration and release readiness verification
+- Target: demonstrate the MVP through the CLI and acceptance criteria.
+- Definition of readiness: the workflow is executable, deterministic, and review-safe.
 
-The interfaces should remain small, stable, and explicit.
+## 4. Task Dependencies
 
-### Repository Scan Interface
-Input:
-- repository root path
+This is the dependency map expressed in plain sequence:
+
+1. Shared modeling and execution contracts
+   - must be ready before all other modules
+2. Repository scanner
+   - must be ready before change detector and analysis components
+3. Change detector
+   - must be ready before analyzer and downstream generation readiness
+4. Documentation analyzer
+   - must be ready before validator and generator
+5. Documentation validator
+   - must be ready before generator and report construction
+6. Documentation generator
+   - must be ready before review orchestrator and audit persistence
+7. Report generator
+   - must be ready before review packaging and audit capture
+8. Review orchestrator
+   - must be ready before any approval-gated commit path is considered valid
+9. Audit store
+   - must be available once review and report artifacts exist
+10. Pipeline orchestrator
+   - must integrate all completed stages into one deterministic workflow
+11. CLI integration
+   - must be the final execution-path validation step within the approved scope
+
+## 5. Blocked Tasks
+
+The following tasks are blocked until their upstream dependencies are complete:
+
+- Documentation analyzer is blocked by repository scan and change detection.
+- Validator is blocked by the analyzer’s impact assessment.
+- Generator is blocked by validator output and safe content conditions.
+- Report generator is blocked by generator output and warning classification.
+- Review orchestrator is blocked by validated generation and report artifacts.
+- Audit store records are blocked by the existence of run metadata and approval state.
+- Pipeline orchestrator is blocked by the set of completed stage contracts.
+- CLI integration is blocked by orchestrator completion.
+
+## 6. Estimated Implementation Sequence
+
+The implementation sequence should follow these phases:
+
+Phase A — Core contracts and repository boundary (1-2 iterations)
+- Build execution shell, repository access, Git boundary, and shared models.
+
+Phase B — Repository intelligence and drift detection (1-2 iterations)
+- Implement scanning, file classification, and change detection.
+
+Phase C — Documentation decisioning (1-2 iterations)
+- Implement analyzer and validator to turn repository drift into safe documentation decisions.
+
+Phase D — Output generation and review (1-2 iterations)
+- Implement generator, report, and review orchestration.
+
+Phase E — Audit, end-to-end orchestration, and CLI verification (1-2 iterations)
+- Finalize the pipeline, audit persistence, and acceptance-criteria verification.
+
+This sequence is intentionally conservative and intentionally aligned to the approved architecture. It does not expand into code generation, PR automation, Confluence publishing, or multi-repository support.
+
+## 7. Risks During Implementation
+
+### Implementation risk 1: Contract drift across modules
+The architecture depends on stable contracts between scanner, detector, analyzer, validator, generator, report, review, and audit modules.
+
+Mitigation:
+- Make each model contract explicit and small.
+- Keep stage interfaces deterministic and testable.
+- Validate cross-module boundaries before moving to the next milestone.
+
+### Implementation risk 2: Low-confidence generation becomes a false-positive problem
+The product is intended to be conservative, but implementation may accidentally over-generate documentation if confidence thresholds are not enforced consistently.
+
+Mitigation:
+- Keep the validator as the gating boundary.
+- Route low-confidence content to skip and warning behavior first.
+- Ensure review artifacts are always produced from validated inputs.
+
+### Implementation risk 3: Review workflow ambiguity
+If the approval state is not formally modeled, implementation may produce inconsistency between local execution, GitHub review behavior, and CLI-driven acceptance.
+
+Mitigation:
+- Normalize approval semantics as a workflow state in the implementation contract.
+- Keep approval state explicit and auditable.
+
+### Implementation risk 4: Execution run overlap
+If duplicate runs are allowed to overlap on the same repository, results may become non-deterministic.
+
+Mitigation:
+- Treat the MVP run as a single-instance operation per repository state.
+- Reject overlapping runs explicitly.
+
+### Implementation risk 5: Audit artifact incompleteness
+If run metadata is not captured consistently, later troubleshooting and review support will be weakened.
+
+Mitigation:
+- Make audit persistence a named milestone, not an afterthought.
+- Record stage-level results and approval state for every completed run.
+
+## 8. Definition of Done for Each Milestone
+
+### Milestone 1 — Foundation and repository access contract
+Done when:
+- execution context is defined
+- repository availability checks are implemented
+- CLI startup is available
+- shared contracts are in place for repository and run metadata
+
+### Milestone 2 — Repository scanning and file classification
+Done when:
+- repository contents are enumerated correctly
+- files are classified into supported categories deterministically
+- the repository model is stable enough for downstream analysis
+
+### Milestone 3 — Change detection and repository drift identification
+Done when:
+- changed source files are identified reliably
+- unchanged documentation can be skipped deterministically
+- change inventory is available to the analyzer
+
+### Milestone 4 — Documentation analysis and impact assessment
+Done when:
+- documentation status is classified as up-to-date, outdated, missing, or uncertain
+- impact assessment is structured and consumable by validation and generation stages
+
+### Milestone 5 — Validation gate for safe generation
+Done when:
+- confidence-driven validation output is produced consistently
+- low-confidence sections are warned or skipped without speculative generation
+- the validator result is used by the generator and review flow
+
+### Milestone 6 — Documentation generation and report drafting
+Done when:
+- review-ready documentation proposals are produced for approved targets
+- Markdown report generation is stable and deterministic
+- warnings and skipped sections are explicit in the output
+
+### Milestone 7 — Review orchestration and approval-state enforcement
+Done when:
+- a review-ready package exists for authorized inspection
+- approved state is required before any documentation finalization path proceeds
+- review artifacts are controlled by the approved workflow semantics
+
+### Milestone 8 — Audit persistence and traceability
+Done when:
+- each run records the required metadata, stage outputs, warnings, and approval state
+- the audit trail can support review, debugging, and governance needs
+
+### Milestone 9 — Pipeline orchestration and end-to-end execution sequencing
+Done when:
+- the runtime sequence runs from scan through review in deterministic order
+- early-stop behavior is defined for repository or low-confidence failures
+- the pipeline is consistent across entry modes
+
+### Milestone 10 — CLI integration and release readiness verification
+Done when:
+- CLI execution completes successfully for the approved path
+- all acceptance criteria are covered by the implementation path
+- the MVP remains aligned to the architecture, review assumptions, and requirements baseline
+
 - supported target file rules
 
 Output:
